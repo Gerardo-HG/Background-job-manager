@@ -7,6 +7,10 @@ from werkzeug.utils import secure_filename
 # Ruta de acceso al sistema operativo
 import os
 
+# Importación de Módulos
+from src.worker.tasks import process_file
+
+
 # 1. Inicializando la aplicación Flask
 app = Flask(__name__)
 
@@ -44,15 +48,19 @@ def upload_file():
             }
         ),400
     
-    filename = secure_filename(file.filename)
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file_sec = secure_filename(file.filename)
+    filename = os.path.join(app.config['UPLOAD_FOLDER'], file_sec)
     
-    file.save(file_path)
-    print(f"Archivo guardado en: {file_path}")
+    file.save(filename)
+    print(f"Archivo guardado en: {filename}")
+
+    # Llamando a la tarea asíncrona
+    async_task = process_file.delay(filename)
 
     return jsonify(
         {
-            'mensaje':'Archivo subido exitosamente'
+            'mensaje':'Archivo subido exitosamente',
+            "job_id": async_task.id
         }
     ), 200
 
