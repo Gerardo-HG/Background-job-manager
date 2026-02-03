@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  # Nombre del servicio en nuestra red interna
+  redis:
+    # La "imagen" es el software pre-instalado.
+    # 'alpine' es una versión ultra ligera de Linux con Redis.
+    image: redis:alpine
+
+    # Nombre del contenedor para identificarlo fácil
+    container_name: mi-redis-local
+
+    # Mapeo de puertos: "PuertoPC:PuertoContenedor"
+    # Esto conecta el puerto 6379 de tu PC al 6379 del Docker
+    ports:
+      - "6379:6379"
+
+    # Esto hace que Redis se reinicie solo si falla o si reinicias Docker
+    restart: always
