@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>File Processor Async</title>
+    <link href="https://fonts.googleapis.com" rel="stylesheet" />
+    <style>
+      :root {
+        --primary: #4f46e5;
+        --primary-hover: #4338ca;
+        --bg: #f9fafb;
+        --card: #ffffff;
+        --text: #1f2937;
+        --success-bg: #f0fdf4;
+        --success-border: #bbf7d0;
+        --warning-bg: #fffbeb;
+        --warning-border: #fef3c7;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 20px;
+      }
+
+      .container {
+        background: var(--card);
+        padding: 2.5rem;
+        border-radius: 1rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        width: 100%;
+        max-width: 450px;
+        text-align: center;
+      }
+
+      h1 {
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        font-size: 1.5rem;
+      }
+      p.subtitle {
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin-bottom: 2rem;
+      }
+
+      .upload-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      input[type="file"] {
+        padding: 1rem;
+        border: 2px dashed #d1d5db;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        background: #fafafa;
+        transition: border-color 0.3s;
+      }
+
+      input[type="file"]:hover {
+        border-color: var(--primary);
+      }
+
+      button {
+        background-color: var(--primary);
+        color: white;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      button:hover {
+        background-color: var(--primary-hover);
+        transform: translateY(-1px);
+      }
+
+      /* Contenedores de Estado y Resultado */
+      .box {
+        margin-top: 1.5rem;
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        font-size: 0.95rem;
+      }
+
+      #loading {
+        display: none; /* Controlado por JS */
+        background-color: var(--warning-bg);
+        border: 1px solid var(--warning-border);
+        color: #92400e;
+      }
+
+      #result {
+        display: none; /* Controlado por JS */
+        background-color: var(--success-bg);
+        border: 1px solid var(--success-border);
+        text-align: left;
+      }
+
+      .result-item {
+        margin: 0.5rem 0;
+      }
+      .highlight {
+        font-weight: 700;
+        color: var(--primary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>📝 Sistema de Conteo</h1>
+      <p class="subtitle">Sube tu archivo para procesarlo asíncronamente</p>
+
+      <!-- Formulario con ID para JS -->
+      <form
+        action="/upload"
+        id="uploadForm"
+        class="upload-form"
+        enctype="multipart/form-data"
+        method="POST"
+      >
+        <input
+          type="file"
+          name="file"
+          id="fileInput"
+          accept=".json, .txt, .pdf, .jpg, .png"
+          required
+        />
+        <button type="submit" id="btnSubmit">Subir y Procesar</button>
+      </form>
+
+      <!-- Div de Carga -->
+      <div id="loading" class="box">
+        <p>⏳ <strong>Procesando archivo...</strong> por favor espera.</p>
+      </div>
+
+      <!-- Div de Resultados -->
+      <div id="result" class="box">
+        <h3 style="margin-top: 0; color: #166534">¡Análisis Completado!</h3>
+        <div class="result-item">
+          ID de Tarea: <code id="jobIdDisplay" class="highlight">-</code>
+        </div>
+        <div class="result-item">
+          Palabras contadas: <strong id="wordCountDisplay">-</strong>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const uploadForm = document.getElementById("uploadForm");
+      const fileInput = document.getElementById("fileInput");
+      const loadingDiv = document.getElementById("loading");
+      const resultDiv = document.getElementById("result");
+
+      const jobIdDisplay = document.getElementById("jobIdDisplay");
+      const wordCountDisplay = document.getElementById("wordCountDisplay");
+
+      uploadForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        // Limiamos la pantalla anterior
+        resultDiv.style.display = "none";
+        loadingDiv.style.display = "block";
+
+        // Preparamos los datos para el envio
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+
+        try {
+          // Enviamos el archivo al backend
+          const response = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error("Error al subir archivo");
+          }
+
+          const data = await response.json();
+          const jobId = data.job_id;
+
+          console.log("Archivo subido. Job ID:", jobId);
+
+          // Iniciamos el polling para obtener el resultado
+          pollStatus(jobId);
+        } catch (error) {
+          console.error("Error durante la subida:", error);
+          alert("Error al subir el archivo: " + error.message);
+          loadingDiv.style.display = "none";
+        }
+      });
+
+      // Funcion para hacer polling del estado de la tarea
+      async function pollStatus(jobId) {
+        try {
+          // Preguntamos el estado actual de la tarea
+          const response = await fetch(`/status/${jobId}`);
+          const data = await response.json();
+
+          console.log("Estado actual:", data);
+
+          // Verificamos el estado
+          if (data.status === "SUCCESS" || data.ready === true) {
+            // Tarea completada
+            loadingDiv.style.display = "none";
+            resultDiv.style.display = "block";
+
+            // Mostramos los resultados
+            jobIdDisplay.textContent = jobId;
+
+            if (data.result && data.result.word_count !== undefined) {
+              wordCountDisplay.textContent = data.result.word_count;
+            } else {
+              wordCountDisplay.textContent = "N/A";
+            }
+          } else if (data.status === "FAILURE") {
+            // Tarea fallida
+            loadingDiv.style.display = "none";
+            alert(
+              "Error al procesar el archivo." +
+                (data.error ? " Detalles: " + data.error : ""),
+            );
+          } else {
+            // Tarea aún en proceso, esperamos y volvemos a preguntar
+            setTimeout(() => pollStatus(jobId), 2000);
+          }
+        } catch (error) {
+          console.error("Error en polling:", error);
+        }
+      }
+    </script>
+  </body>
+</html>

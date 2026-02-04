@@ -3,15 +3,14 @@ from celery import Celery
 import time
 
 # Importando configuraciones y funcionalidades
-from src.shared.config import CELERY_BROKER_URL, CELERY_RESULT_BACKEND
-from src.shared.file_utils import read_json_file, save_result
-
+from src.shared.config import config
+from src.shared.file_utils import words_count, save_result, allowed_file
 
 # 1. Inicializando la aplicación Celery
 celery_app = Celery(
     'worker',
-    broker=CELERY_BROKER_URL,
-    backend=CELERY_RESULT_BACKEND
+    broker=config.CELERY_BROKER_URL,
+    backend=config.CELERY_RESULT_BACKEND
 )
 
 # 2. Configuración adicional
@@ -23,34 +22,39 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
-# 3. Creando una tarea de ejemplo
+# 3. Tarea de procesamiento
 @celery_app.task(bind=True, name='process_file')
 def process_file(self,  filename):
     print(f"Iniciando el procesamiento del archivo: {filename}")
     
-    # Leer el archivo y contar palabras
-    content = read_json_file(filename)
+    # Verificamos si el archivo a procesar es uno permitido
+    allowed = allowed_file(filename)
 
-    # Verificamos si la lectura tuvo un error
-    if content['status'] == 'error':
-        print(f"Error al leer el archiv: {content.get('message')}")
-    
-        # Guardamos el resultado con estado de error
-        save_result(self.request.id, content)
-        return 'READING_ERROR'
+    if not allowed:
+        raise ValueError(f"Extensión no permitida para el archivo: {filename}")
 
-    # Si la lectura fue exitosa, preparamos el resultado
-    result = {
-        'task_id': self.request.id,
-        'status': content.get('status'),
-        'word_count': content.get('words')
-    }
-
-    # Intentamos guardar el resultado
     try:
+        count = words_count(filename)
+
+        # Estructura del resultado
+        result = {
+            'id': self.request.id,
+            'status':'SUCCESS',
+            'word_count': count
+        }
+
+        # Persistencia en JSON
         save_result(self.request.id, result)
+
+        return result
+
+    except FileNotFoundError:
+        error_msg = f"El archivo no se encontró en la ruta: {filename}"
+        print(f"Error: {error_msg}")
+        raise Exception(error_msg)
+
+
     except Exception as e:
-        print(f"Error al guardar el resultado: {str(e)}")
-        return 'SAVING_ERROR'
-    
-    return 'OK'
+        error_msg = f"Error inesperado al procesar el archivo: {str(e)}"
+        print(f"Error: {error_msg}")
+        raise Exception(error_msg)

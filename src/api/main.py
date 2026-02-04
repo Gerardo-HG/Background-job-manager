@@ -1,5 +1,5 @@
 # Servidor Web API principal
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 
 # Seguridad de archivos
 from werkzeug.utils import secure_filename
@@ -8,29 +8,29 @@ from werkzeug.utils import secure_filename
 import os
 
 # Importación de Módulos
-from src.worker.tasks import process_file
-
+from src.worker.tasks import process_file, celery_app
+from celery.result import AsyncResult
+from src.shared.config import config
+from src.shared.job_tracker import JobTracker
 
 # 1. Inicializando la aplicación Flask
 app = Flask(__name__)
 
-# 2. Definiendo rutas absolutas
-UPLOAD_FOLDER = os.path.join(os.getcwd(),'uploads')
-
-#3. Si la carpeta UPLOAD_FOLDER no existe se crea
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+# 2. Inicilizando Config
+config.init_directories()
 
 # 4. Configuración de la aplicación
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['DEBUG'] = True
+app.config.update(
+    UPLOAD_FOLDER = config.UPLOAD_FOLDER_PATH,
+    MAX_CONTENT_LENGTH = config.MAX_CONTENT_LENGTH,
+    DEBUG = True
+)
 
-# 5. Definiendo una ruta de prueba
+
+# 5. Definiendo las rutas de la APIS
 @app.route('/', methods=["GET"])
 def health_check():
-    return jsonify(
-        {'estado':'El servidor está vivo'}
-    ), 200
+    return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -64,7 +64,11 @@ def upload_file():
         }
     ), 200
 
+@app.route('/status/<job_id>', methods=['GET'])
+def get_status_by_id(job_id):
+    # Conectamos con el backend de resultado usando el ID
+    tracker = JobTracker(job_id)
 
-if __name__ == '__main__':
-    app.run(debug=True)
-    
+    response = tracker.get_status()
+
+    return jsonify(response),200
