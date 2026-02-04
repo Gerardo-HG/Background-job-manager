@@ -2,7 +2,10 @@
 from celery import Celery
 import time
 
+# Importando configuraciones y funcionalidades
 from src.shared.config import CELERY_BROKER_URL, CELERY_RESULT_BACKEND
+from src.shared.file_utils import read_json_file, save_result
+
 
 # 1. Inicializando la aplicación Celery
 celery_app = Celery(
@@ -21,13 +24,33 @@ celery_app.conf.update(
 )
 
 # 3. Creando una tarea de ejemplo
-@celery_app.task(name='process_file')
-def process_file(filename):
+@celery_app.task(bind=True, name='process_file')
+def process_file(self,  filename):
     print(f"Iniciando el procesamiento del archivo: {filename}")
     
-    # Simulando una tarea que toma tiempo
-    time.sleep(10)
+    # Leer el archivo y contar palabras
+    content = read_json_file(filename)
 
-    print(f"Tarea terminada para el archivo: {filename}")
+    # Verificamos si la lectura tuvo un error
+    if content['status'] == 'error':
+        print(f"Error al leer el archiv: {content.get('message')}")
+    
+        # Guardamos el resultado con estado de error
+        save_result(self.request.id, content)
+        return 'READING_ERROR'
 
+    # Si la lectura fue exitosa, preparamos el resultado
+    result = {
+        'task_id': self.request.id,
+        'status': content.get('status'),
+        'word_count': content.get('words')
+    }
+
+    # Intentamos guardar el resultado
+    try:
+        save_result(self.request.id, result)
+    except Exception as e:
+        print(f"Error al guardar el resultado: {str(e)}")
+        return 'SAVING_ERROR'
+    
     return 'OK'
