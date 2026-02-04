@@ -1,4 +1,4 @@
-# 🚀 Sistema de Procesamiento de Archivos Asíncrono y Distribuido
+# 🚀 Sistema de análisis de texto distribuido
 
 Este proyecto es una implementación Full Stack de una arquitectura **Event-Driven** (basada en eventos) diseñada para procesar tareas pesadas en segundo plano sin bloquear la interfaz de usuario.
 
