@@ -1,17 +1,9 @@
-# Entorno virtual (¡Muy importante no subirlo!)
-venv/
+```text
 .venv/
-
-# Archivos compilados de Python (Basura automática)
 __pycache__/
 *.pyc
-
-# Variables de entorno
-.env
-
-# Carpetas de datos para no versionar los archivos de prueba
-uploads/
-processed/
-
-# Archivos del sistema Mac 
 .DS_Store
+uploads/*
+!uploads/.gitkeep
+processed/*
+!processed/.gitkeep
